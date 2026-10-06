@@ -41,7 +41,7 @@ app.get('/api/v1/info', async (req, res) => {
     environment: config.env,
     version: config.version,
     commitSha: config.commitSha,
-    databaseHost: dbHealth.host || 'unknown',
+    databaseHost: dbHealth.host || 'unknown host',
     databaseStatus: dbHealth.status,
     timestamp: new Date().toISOString(),
     uptimeSeconds: Math.floor(process.uptime()),
