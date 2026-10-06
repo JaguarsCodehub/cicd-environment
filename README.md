@@ -21,6 +21,9 @@ Host / Runner Network
 | **Staging** | `staging` | `3002` | `cicd-staging-db` (5432) | Automated deployment, pre-prod parity, smoke verification suite |
 | **Production** | `main` | `3000` | `cicd-prod-db` (5432) | **Manual Reviewer Approval Gate**, hardened configuration |
 
+> [!TIP]
+> **Deploying to AWS EC2:** See the comprehensive [AWS EC2 Deployment Guide](aws_ec2_deployment_guide.md) for full instructions on provisioning an Ubuntu EC2 instance, security group settings, and linking GitHub Secrets (`EC2_HOST`, `EC2_USER`, `EC2_SSH_KEY`).
+
 ---
 
 ## 2. Quickstart & Local Orchestration

@@ -16,7 +16,7 @@ jobs:
   # CI: BUILD ONCE & TEST ARTIFACT
   # ==========================================================
   ci:
-    name: Build & Test
+    name: Build & Test Artifact
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -67,13 +67,13 @@ jobs:
     if: github.ref == 'refs/heads/dev'
     environment:
       name: development
-      url: http://dev.example.internal:3001
+      url: ${{ secrets.EC2_HOST && format('http://{0}:3001', secrets.EC2_HOST) || 'http://localhost:3001' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Node.js 20
         uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -84,17 +84,27 @@ jobs:
           name: docker-image-artifact
           path: dist
 
-      - name: Load Pre-Built Image
-        run: docker load -i dist/app-image.tar
-
-      - name: Deploy Development Stack
+      - name: Deploy to Target (AWS EC2 / Runner)
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER || 'ubuntu' }}
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
         run: |
-          docker compose --profile dev up -d
-          echo "Waiting for development service readiness..."
-          timeout 30 bash -c 'until curl -s -f http://localhost:3001/health; do sleep 2; done'
-
-      - name: Run Post-Deployment Smoke Test
-        run: node scripts/smoke-test.js http://localhost:3001
+          if [ -n "$EC2_HOST" ] && [ -n "$EC2_SSH_KEY" ]; then
+            echo "Deploying remotely to AWS EC2: $EC2_HOST (Environment: dev, Port: 3001)..."
+            mkdir -p ~/.ssh
+            echo "$EC2_SSH_KEY" > ~/.ssh/id_rsa
+            chmod 600 ~/.ssh/id_rsa
+            ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+            chmod +x scripts/remote-deploy.sh
+            ./scripts/remote-deploy.sh dev "$EC2_HOST" "$EC2_USER"
+          else
+            echo "EC2_HOST secret not configured. Executing container deployment on GitHub runner..."
+            docker load -i dist/app-image.tar
+            docker compose --profile dev up -d
+            timeout 30 bash -c 'until curl -s -f http://localhost:3001/health; do sleep 2; done'
+            node scripts/smoke-test.js http://localhost:3001
+          fi
 
   # ==========================================================
   # DEPLOY: STAGING TIER (Automatic on 'staging' branch)
@@ -105,13 +115,13 @@ jobs:
     if: github.ref == 'refs/heads/staging'
     environment:
       name: staging
-      url: http://staging.example.internal:3002
+      url: ${{ secrets.EC2_HOST && format('http://{0}:3002', secrets.EC2_HOST) || 'http://localhost:3002' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Node.js 20
         uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -122,17 +132,27 @@ jobs:
           name: docker-image-artifact
           path: dist
 
-      - name: Load Pre-Built Image
-        run: docker load -i dist/app-image.tar
-
-      - name: Deploy Staging Stack
+      - name: Deploy to Target (AWS EC2 / Runner)
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER || 'ubuntu' }}
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
         run: |
-          docker compose --profile staging up -d
-          echo "Waiting for staging service readiness..."
-          timeout 30 bash -c 'until curl -s -f http://localhost:3002/health; do sleep 2; done'
-
-      - name: Run Staging Smoke Verification
-        run: node scripts/smoke-test.js http://localhost:3002
+          if [ -n "$EC2_HOST" ] && [ -n "$EC2_SSH_KEY" ]; then
+            echo "Deploying remotely to AWS EC2: $EC2_HOST (Environment: staging, Port: 3002)..."
+            mkdir -p ~/.ssh
+            echo "$EC2_SSH_KEY" > ~/.ssh/id_rsa
+            chmod 600 ~/.ssh/id_rsa
+            ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+            chmod +x scripts/remote-deploy.sh
+            ./scripts/remote-deploy.sh staging "$EC2_HOST" "$EC2_USER"
+          else
+            echo "EC2_HOST secret not configured. Executing container deployment on GitHub runner..."
+            docker load -i dist/app-image.tar
+            docker compose --profile staging up -d
+            timeout 30 bash -c 'until curl -s -f http://localhost:3002/health; do sleep 2; done'
+            node scripts/smoke-test.js http://localhost:3002
+          fi
 
   # ==========================================================
   # DEPLOY: PRODUCTION TIER (Manual Approval Gate on 'main' branch)
@@ -143,13 +163,13 @@ jobs:
     if: github.ref == 'refs/heads/main'
     environment:
       name: production
-      url: http://prod.example.internal:3000
+      url: ${{ secrets.EC2_HOST && format('http://{0}:3000', secrets.EC2_HOST) || 'http://localhost:3000' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Node.js 20
         uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -160,14 +180,24 @@ jobs:
           name: docker-image-artifact
           path: dist
 
-      - name: Load Pre-Built Image
-        run: docker load -i dist/app-image.tar
-
-      - name: Deploy Production Stack
+      - name: Deploy to Target (AWS EC2 / Runner)
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER || 'ubuntu' }}
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
         run: |
-          docker compose --profile prod up -d
-          echo "Waiting for production service readiness..."
-          timeout 30 bash -c 'until curl -s -f http://localhost:3000/health; do sleep 2; done'
-
-      - name: Run Production Smoke Verification
-        run: node scripts/smoke-test.js http://localhost:3000
+          if [ -n "$EC2_HOST" ] && [ -n "$EC2_SSH_KEY" ]; then
+            echo "Deploying remotely to AWS EC2: $EC2_HOST (Environment: prod, Port: 3000)..."
+            mkdir -p ~/.ssh
+            echo "$EC2_SSH_KEY" > ~/.ssh/id_rsa
+            chmod 600 ~/.ssh/id_rsa
+            ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+            chmod +x scripts/remote-deploy.sh
+            ./scripts/remote-deploy.sh prod "$EC2_HOST" "$EC2_USER"
+          else
+            echo "EC2_HOST secret not configured. Executing container deployment on GitHub runner..."
+            docker load -i dist/app-image.tar
+            docker compose --profile prod up -d
+            timeout 30 bash -c 'until curl -s -f http://localhost:3000/health; do sleep 2; done'
+            node scripts/smoke-test.js http://localhost:3000
+          fi
