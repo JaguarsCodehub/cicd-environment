@@ -67,7 +67,7 @@ jobs:
     if: github.ref == 'refs/heads/dev'
     environment:
       name: development
-      url: ${{ secrets.EC2_HOST && format('http://{0}:3001', secrets.EC2_HOST) || 'http://localhost:3001' }}
+      url: ${{ steps.deploy.outputs.env_url }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -85,12 +85,14 @@ jobs:
           path: dist
 
       - name: Deploy to Target (AWS EC2 / Runner)
+        id: deploy
         env:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER || 'ubuntu' }}
           EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
         run: |
           if [ -n "$EC2_HOST" ] && [ -n "$EC2_SSH_KEY" ]; then
+            echo "env_url=http://${EC2_HOST}:3001" >> $GITHUB_OUTPUT
             echo "Deploying remotely to AWS EC2: $EC2_HOST (Environment: dev, Port: 3001)..."
             mkdir -p ~/.ssh
             echo "$EC2_SSH_KEY" > ~/.ssh/id_rsa
@@ -99,6 +101,7 @@ jobs:
             chmod +x scripts/remote-deploy.sh
             ./scripts/remote-deploy.sh dev "$EC2_HOST" "$EC2_USER"
           else
+            echo "env_url=http://localhost:3001" >> $GITHUB_OUTPUT
             echo "EC2_HOST secret not configured. Executing container deployment on GitHub runner..."
             docker load -i dist/app-image.tar
             docker compose --profile dev up -d
@@ -115,7 +118,7 @@ jobs:
     if: github.ref == 'refs/heads/staging'
     environment:
       name: staging
-      url: ${{ secrets.EC2_HOST && format('http://{0}:3002', secrets.EC2_HOST) || 'http://localhost:3002' }}
+      url: ${{ steps.deploy.outputs.env_url }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -133,12 +136,14 @@ jobs:
           path: dist
 
       - name: Deploy to Target (AWS EC2 / Runner)
+        id: deploy
         env:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER || 'ubuntu' }}
           EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
         run: |
           if [ -n "$EC2_HOST" ] && [ -n "$EC2_SSH_KEY" ]; then
+            echo "env_url=http://${EC2_HOST}:3002" >> $GITHUB_OUTPUT
             echo "Deploying remotely to AWS EC2: $EC2_HOST (Environment: staging, Port: 3002)..."
             mkdir -p ~/.ssh
             echo "$EC2_SSH_KEY" > ~/.ssh/id_rsa
@@ -147,6 +152,7 @@ jobs:
             chmod +x scripts/remote-deploy.sh
             ./scripts/remote-deploy.sh staging "$EC2_HOST" "$EC2_USER"
           else
+            echo "env_url=http://localhost:3002" >> $GITHUB_OUTPUT
             echo "EC2_HOST secret not configured. Executing container deployment on GitHub runner..."
             docker load -i dist/app-image.tar
             docker compose --profile staging up -d
@@ -163,7 +169,7 @@ jobs:
     if: github.ref == 'refs/heads/main'
     environment:
       name: production
-      url: ${{ secrets.EC2_HOST && format('http://{0}:3000', secrets.EC2_HOST) || 'http://localhost:3000' }}
+      url: ${{ steps.deploy.outputs.env_url }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -181,12 +187,14 @@ jobs:
           path: dist
 
       - name: Deploy to Target (AWS EC2 / Runner)
+        id: deploy
         env:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER || 'ubuntu' }}
           EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
         run: |
           if [ -n "$EC2_HOST" ] && [ -n "$EC2_SSH_KEY" ]; then
+            echo "env_url=http://${EC2_HOST}:3000" >> $GITHUB_OUTPUT
             echo "Deploying remotely to AWS EC2: $EC2_HOST (Environment: prod, Port: 3000)..."
             mkdir -p ~/.ssh
             echo "$EC2_SSH_KEY" > ~/.ssh/id_rsa
@@ -195,6 +203,7 @@ jobs:
             chmod +x scripts/remote-deploy.sh
             ./scripts/remote-deploy.sh prod "$EC2_HOST" "$EC2_USER"
           else
+            echo "env_url=http://localhost:3000" >> $GITHUB_OUTPUT
             echo "EC2_HOST secret not configured. Executing container deployment on GitHub runner..."
             docker load -i dist/app-image.tar
             docker compose --profile prod up -d
