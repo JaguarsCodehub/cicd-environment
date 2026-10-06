@@ -6,7 +6,7 @@ It implements the **"Build Once, Promote Everywhere"** pattern: an immutable con
 
 ---
 
-## 1. System Architecture & Topology
+## 1. System Architecture & Topolo
 
 ```text
 Host / Runner Network
