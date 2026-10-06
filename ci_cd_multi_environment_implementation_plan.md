@@ -36,14 +36,29 @@ The system employs a **Build Once, Promote Everywhere** pattern. Code changes pr
 ## 3. Project Directory Structure
 
 ```text
-cicd-demo/
+cicd-environment/
 ├── .github/
 │   └── workflows/
-│       └── deploy.yml        # Unified CI/CD workflow with environment gates
+│       └── deploy.yml          # Unified multi-environment CI/CD workflow
+├── scripts/
+│   ├── deploy-env.ps1          # PowerShell local multi-tier orchestration CLI
+│   ├── deploy-env.sh           # Bash local orchestration CLI
+│   └── smoke-test.js           # Automated post-deployment smoke verification suite
+├── src/
+│   ├── config.js               # 12-factor configuration module
+│   ├── db.js                   # PostgreSQL pool with health check & auto-migration
+│   └── server.js               # Express API (/health, /api/v1/info, /api/v1/tasks)
 ├── test/
-│   └── app.test.js           # Lightweight automated verification suite
+│   ├── app.test.js             # Unit test suite
+│   └── integration.test.js     # Concurrency and integration test suite
+├── .env.development            # Dev environment config (Port 3001, dev-db)
+├── .env.staging                # Staging environment config (Port 3002, staging-db)
+├── .env.production             # Production environment config (Port 3000, prod-db)
+├── .env.example
 ├── .gitignore
-├── package.json              # Project manifest and test runner configuration
+├── Dockerfile                  # Multi-stage image build (test + minimal runner)
+├── docker-compose.yml          # Isolated environment profiles and database volumes
+├── package.json
 └── README.md
 ```
 

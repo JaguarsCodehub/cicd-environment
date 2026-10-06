@@ -1,0 +1,131 @@
+version: '3.8'
+
+services:
+  # ==========================================================
+  # DEVELOPMENT TIER (Profile: dev, Port: 3001)
+  # ==========================================================
+  dev-db:
+    image: postgres:16-alpine
+    container_name: cicd-dev-db
+    profiles: ["dev"]
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-dev_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dev_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-dev_db}
+    volumes:
+      - dev_db_data:/var/lib/postgresql/data
+    networks:
+      - cicd_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-dev_user} -d ${POSTGRES_DB:-dev_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cicd-app-dev
+    profiles: ["dev"]
+    env_file:
+      - .env.development
+    environment:
+      PORT: 3001
+      DATABASE_URL: postgres://${POSTGRES_USER:-dev_user}:${POSTGRES_PASSWORD:-dev_pass}@dev-db:5432/${POSTGRES_DB:-dev_db}
+    ports:
+      - "3001:3001"
+    depends_on:
+      dev-db:
+        condition: service_healthy
+    networks:
+      - cicd_network
+
+  # ==========================================================
+  # STAGING TIER (Profile: staging, Port: 3002)
+  # ==========================================================
+  staging-db:
+    image: postgres:16-alpine
+    container_name: cicd-staging-db
+    profiles: ["staging"]
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-staging_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-staging_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-staging_db}
+    volumes:
+      - staging_db_data:/var/lib/postgresql/data
+    networks:
+      - cicd_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-staging_user} -d ${POSTGRES_DB:-staging_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app-staging:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cicd-app-staging
+    profiles: ["staging"]
+    env_file:
+      - .env.staging
+    environment:
+      PORT: 3002
+      DATABASE_URL: postgres://${POSTGRES_USER:-staging_user}:${POSTGRES_PASSWORD:-staging_pass}@staging-db:5432/${POSTGRES_DB:-staging_db}
+    ports:
+      - "3002:3002"
+    depends_on:
+      staging-db:
+        condition: service_healthy
+    networks:
+      - cicd_network
+
+  # ==========================================================
+  # PRODUCTION TIER (Profile: prod, Port: 3000)
+  # ==========================================================
+  prod-db:
+    image: postgres:16-alpine
+    container_name: cicd-prod-db
+    profiles: ["prod"]
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-prod_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-prod_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-prod_db}
+    volumes:
+      - prod_db_data:/var/lib/postgresql/data
+    networks:
+      - cicd_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-prod_user} -d ${POSTGRES_DB:-prod_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app-prod:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cicd-app-prod
+    profiles: ["prod"]
+    env_file:
+      - .env.production
+    environment:
+      PORT: 3000
+      DATABASE_URL: postgres://${POSTGRES_USER:-prod_user}:${POSTGRES_PASSWORD:-prod_pass}@prod-db:5432/${POSTGRES_DB:-prod_db}
+    ports:
+      - "3000:3000"
+    depends_on:
+      prod-db:
+        condition: service_healthy
+    networks:
+      - cicd_network
+
+volumes:
+  dev_db_data:
+  staging_db_data:
+  prod_db_data:
+
+networks:
+  cicd_network:
+    driver: bridge

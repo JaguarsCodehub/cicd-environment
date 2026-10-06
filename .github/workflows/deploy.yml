@@ -1,0 +1,173 @@
+name: CI/CD Multi-Environment Pipeline
+
+on:
+  push:
+    branches:
+      - dev
+      - staging
+      - main
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ==========================================================
+  # CI: BUILD ONCE & TEST ARTIFACT
+  # ==========================================================
+  ci:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Execute Unit Test Suite
+        run: npm test
+
+      - name: Execute Integration Test Suite
+        run: npm run test:integration
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Immutable Docker Image
+        run: |
+          docker build \
+            --tag app:${{ github.sha }} \
+            --tag app:latest .
+
+      - name: Export Docker Image Artifact
+        run: |
+          mkdir -p dist
+          docker save app:${{ github.sha }} -o dist/app-image.tar
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-image-artifact
+          path: dist/app-image.tar
+          retention-days: 7
+
+  # ==========================================================
+  # DEPLOY: DEVELOPMENT TIER (Automatic on 'dev' branch)
+  # ==========================================================
+  deploy-dev:
+    name: Deploy to Development
+    needs: ci
+    if: github.ref == 'refs/heads/dev'
+    environment:
+      name: development
+      url: http://dev.example.internal:3001
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Download Build Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-image-artifact
+          path: dist
+
+      - name: Load Pre-Built Image
+        run: docker load -i dist/app-image.tar
+
+      - name: Deploy Development Stack
+        run: |
+          docker compose --profile dev up -d
+          echo "Waiting for development service readiness..."
+          timeout 30 bash -c 'until curl -s -f http://localhost:3001/health; do sleep 2; done'
+
+      - name: Run Post-Deployment Smoke Test
+        run: node scripts/smoke-test.js http://localhost:3001
+
+  # ==========================================================
+  # DEPLOY: STAGING TIER (Automatic on 'staging' branch)
+  # ==========================================================
+  deploy-staging:
+    name: Deploy to Staging
+    needs: ci
+    if: github.ref == 'refs/heads/staging'
+    environment:
+      name: staging
+      url: http://staging.example.internal:3002
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Download Build Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-image-artifact
+          path: dist
+
+      - name: Load Pre-Built Image
+        run: docker load -i dist/app-image.tar
+
+      - name: Deploy Staging Stack
+        run: |
+          docker compose --profile staging up -d
+          echo "Waiting for staging service readiness..."
+          timeout 30 bash -c 'until curl -s -f http://localhost:3002/health; do sleep 2; done'
+
+      - name: Run Staging Smoke Verification
+        run: node scripts/smoke-test.js http://localhost:3002
+
+  # ==========================================================
+  # DEPLOY: PRODUCTION TIER (Manual Approval Gate on 'main' branch)
+  # ==========================================================
+  deploy-prod:
+    name: Deploy to Production
+    needs: ci
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: production
+      url: http://prod.example.internal:3000
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Download Build Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-image-artifact
+          path: dist
+
+      - name: Load Pre-Built Image
+        run: docker load -i dist/app-image.tar
+
+      - name: Deploy Production Stack
+        run: |
+          docker compose --profile prod up -d
+          echo "Waiting for production service readiness..."
+          timeout 30 bash -c 'until curl -s -f http://localhost:3000/health; do sleep 2; done'
+
+      - name: Run Production Smoke Verification
+        run: node scripts/smoke-test.js http://localhost:3000

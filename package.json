@@ -1,0 +1,21 @@
+{
+  "name": "cicd-environment-demo",
+  "version": "1.0.0",
+  "description": "Production-grade multi-environment CI/CD mock application",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test test/app.test.js",
+    "test:integration": "node --test test/integration.test.js",
+    "test:smoke": "node scripts/smoke-test.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "pg": "^8.13.1"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
